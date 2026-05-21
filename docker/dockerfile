@@ -1,0 +1,9 @@
+# docker/Dockerfile
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir  "ray[default]==2.55.1"
+
+# Expose ports for RAY
+EXPOSE 6379 8265 10001 8076 8080
+
+WORKDIR /app
