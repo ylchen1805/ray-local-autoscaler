@@ -1,4 +1,4 @@
-# jobs/verify.py
+# jobs/verify_submission.py
 import ray
 
 ray.init()
