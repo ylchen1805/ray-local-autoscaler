@@ -9,7 +9,18 @@ NETWORK_NAME = "ray-autoscaler-net"  # docker network for ray nodes
 
 def scale_up(worker_id: int) -> None:
     "Add worker node to the network by creating the nodes from docker image."
-    pass
+    client = docker.from_env()
+    container_name = f"ray-worker-{worker_id}"
+
+    client.containers.run(
+        image=WORKER_IMAGE,
+        name=container_name,
+        network=NETWORK_NAME,
+        command=f"ray start --address={RAY_HEAD_ADDRESS} --block",  # Add block to keep container alive.
+        detach=True,
+    )
+
+    print(f"Worker {worker_id} say hello.")
 
 
 def scale_down(worker_id: int) -> None:
