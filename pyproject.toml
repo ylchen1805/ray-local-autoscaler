@@ -1,9 +1,15 @@
 [project]
 name = "final-project"
 version = "0.1.0"
-description = "Add your description here"
+description = "Ray cluster autoscaler with dynamic worker scaling"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "ray[client,default]==2.55.1",
+    "ray[default]==2.55.1",
+]
+
+[dependency-groups]
+local = [
+    "ray[client]==2.55.1",
+    "requests",
 ]

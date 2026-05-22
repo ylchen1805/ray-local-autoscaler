@@ -447,11 +447,23 @@ name = "final-project"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "ray", extra = ["client", "default"] },
+    { name = "ray", extra = ["default"] },
+]
+
+[package.dev-dependencies]
+local = [
+    { name = "ray", extra = ["client"] },
+    { name = "requests" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "ray", extras = ["client", "default"], specifier = "==2.55.1" }]
+requires-dist = [{ name = "ray", extras = ["default"], specifier = "==2.55.1" }]
+
+[package.metadata.requires-dev]
+local = [
+    { name = "ray", extras = ["client"], specifier = "==2.55.1" },
+    { name = "requests" },
+]
 
 [[package]]
 name = "frozenlist"
