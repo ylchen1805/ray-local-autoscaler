@@ -26,17 +26,17 @@ services:
     env_file: .env
 
   # First static worker node for testing the cluster netwoking
-  ray-worker-1:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: ray-worker-1
-    networks:
-      - ray-net
-    depends_on:
-      - ray-head
-    command: >
-      ray start
-      --address=ray-head:6379
-      --block
-    env_file: .env
+  # ray-worker-1:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile
+  #   container_name: ray-worker-1
+  #   networks:
+  #     - ray-net
+  #   depends_on:
+  #     - ray-head
+  #   command: >
+  #     ray start
+  #     --address=ray-head:6379
+  #     --block
+  #   env_file: .env
