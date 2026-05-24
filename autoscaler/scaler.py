@@ -21,7 +21,7 @@ def scale_up(worker_id: int) -> None:
         detach=True,
     )
 
-    print(f"Worker {worker_id} say hello.")
+    print(f"[scaler] Worker {worker_id} say hello.")
 
 
 def scale_down(worker_id: int) -> None:
@@ -33,4 +33,4 @@ def scale_down(worker_id: int) -> None:
     container.exec_run(cmd="ray stop ")
     container.stop()
     container.remove()
-    print(f"Worker {worker_id} are buried.")
+    print(f"[scaler] Worker {worker_id} are buried.")
