@@ -10,6 +10,7 @@ dependencies = [
 
 [dependency-groups]
 local = [
+    "docker>=7.1.0",
     "ray[client]==2.55.1",
     "requests",
 ]

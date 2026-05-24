@@ -1,5 +1,6 @@
 # autosclaer/scaler.py
 import docker
+from docker.types import containers
 
 # Environment
 WORKER_IMAGE = "ray-autoscaler-node"  # docker image
@@ -25,4 +26,11 @@ def scale_up(worker_id: int) -> None:
 
 def scale_down(worker_id: int) -> None:
     "Remove woker node from the network by stop container and delete them."
-    pass
+    client = docker.from_env()
+    container_name = f"ray-worker-{worker_id}"
+
+    container = client.containers.get(container_name)
+    container.exec_run(cmd="ray stop ")
+    container.stop()
+    container.remove()
+    print(f"Worker {worker_id} are buried.")
