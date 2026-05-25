@@ -4,6 +4,12 @@ import requests
 DASHBOARD_URL = "http://localhost:8265"  # Use Ray API to get the current status
 
 
+class HardwareNotSupportedError(Exception):
+    "The cluster does not have this kind of resource."
+
+    pass
+
+
 def get_cluster_status() -> dict:
     "Return cluster status in dict"
 
@@ -30,9 +36,15 @@ def get_alive_nodes() -> list[dict]:
 
 def get_cpu_usage(status: dict) -> tuple[float, float]:
     "Return the current CPU usage as a tuple of (used, total)."
-    pass
+    usage = status["loadMetricsReport"]["usage"]
+    cpu_usage = usage["CPU"]
+    return (cpu_usage[0], cpu_usage[1])
 
 
 def get_gpu_usage(status: dict) -> tuple[float, float]:
     "Return the current GPU usage as a tuple of (used, total)."
-    pass
+    usage = status["loadMetricsReport"]["usage"]
+    if "GPU" not in usage:
+        raise HardwareNotSupportedError("The cluster doesn't have any GPU resource.")
+    gpu_usage = usage["GPU"]
+    return (gpu_usage[0], gpu_usage[1])
