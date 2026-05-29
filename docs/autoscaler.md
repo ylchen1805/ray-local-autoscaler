@@ -132,6 +132,7 @@ _POLICY_REGISTRY["my_policy"] = MyPolicy
 ```
 
 Then set `name: my_policy` in `scale_policy.yaml`.
+
 ---
 
 ## Getting Started
@@ -173,7 +174,7 @@ uv run ray job submit \
 ### Verify cluster status
 ```bash
 docker exec ray-head ray status
-`
+```
 ---
 
 ## Project Structure
