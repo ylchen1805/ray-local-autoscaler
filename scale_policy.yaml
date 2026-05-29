@@ -1,10 +1,10 @@
 name: threshold
 
 # minimum worker nodes
-min_workers: 1
+min_workers: 0
 
 # maximum worker nodes
-max_workers: 4
+max_workers: 5
 
 # cooldown time in seconds to prevent rapid scaling
 cooldown: 15
@@ -14,4 +14,4 @@ cpu_scale_down_threshold: 0.1
 # gpu_scale_down_threshold: 0.1
 
 # scale up counter( if there're pending resource demands counter += 1)
-scale_up_threshold: 5
+scale_up_threshold: 3
