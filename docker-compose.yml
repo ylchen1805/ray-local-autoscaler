@@ -1,16 +1,18 @@
 # docker-compose.yml
 networks:
-  ray-net:
+  ray-autoscaler-net:
     driver: bridge
+    name: ray-autoscaler-net
 
 services:
   ray-head:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    image: ray-autoscaler-node
     container_name: ray-head
     networks:
-      - ray-net
+      - ray-autoscaler-net
     ports:
       - "8265:8265" # Dashboard
       - "10001:10001" # Client 連線
@@ -32,7 +34,7 @@ services:
   #     dockerfile: docker/Dockerfile
   #   container_name: ray-worker-1
   #   networks:
-  #     - ray-net
+  #     - ray-autoscaler-net
   #   depends_on:
   #     - ray-head
   #   command: >
