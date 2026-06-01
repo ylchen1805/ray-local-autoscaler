@@ -61,6 +61,8 @@ class ThresholdPolicy(BasePolicy):
         cpu_scale_down_threshold: float = 0.1,
         gpu_scale_down_threshold: Optional[float] = None,
         scale_up_threshold: int = 5,
+        worker_memory_limit: Optional[str] = None,
+        worker_cpu_limit: Optional[int] = None,
     ):
         super().__init__()
         self.min_workers = min_workers
@@ -70,6 +72,8 @@ class ThresholdPolicy(BasePolicy):
         self.cooldown = cooldown
         self.scale_up_threshold = scale_up_threshold
         self._pending_count = 0
+        self.worker_memory_limit = worker_memory_limit
+        self.worker_cpu_limit = worker_cpu_limit
 
     def should_scale_up(self, pending: list, alive_workers: int) -> bool:
         """Return True if the cluster should scale up."""

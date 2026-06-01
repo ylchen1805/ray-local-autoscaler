@@ -17,7 +17,7 @@ else:
 def work(i):
     host = socket.gethostname()
     pid = os.getpid()
-    time.sleep(10)
+    time.sleep(30)
     return {"task": i, "host": host, "pid": pid}
 
 
