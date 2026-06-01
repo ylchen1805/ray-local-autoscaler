@@ -210,7 +210,7 @@ Response `200`
 ## Dashboard Stream
 
 ```http
-GET /api/v1/dashboard/stream
+GET /api/v1/dashboard/stream?from_index=0
 ```
 
 Protocol: SSE (Server-Sent Events). Each event is pushed as the order progresses through its lifecycle.
@@ -221,6 +221,7 @@ data: {"order_id": "order_d39c9cd42f89402e", "status": "OrderCreated", "timestam
 ```
 
 - Use stream to update frontend in real-time without polling.
+- `from_index` allows client to specify from which event index to start receiving updates (can be get from the snapshot, default is 0, which means start from the beginning), enabling reconnection without data loss.
 
 ---
 
@@ -245,7 +246,8 @@ Response `200` — full state for frontend reconciliation:
       "status_timestamps": { ... }
     }
   ],
-  "total_orders": 1
+  "total_orders": 1,
+  "last_event_index": len(self.events) - 1,
 }
 ```
 

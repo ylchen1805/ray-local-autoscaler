@@ -9,9 +9,9 @@ router = APIRouter()
 
 
 @router.get("/dashboard/stream")
-async def dashboard_stream():
+async def dashboard_stream(from_index: int = 0):
     async def event_generator():
-        last_index = 0
+        last_index = from_index
         manager = ray.get_actor("order_manager", namespace="default")
         loop = asyncio.get_running_loop()
         while True:

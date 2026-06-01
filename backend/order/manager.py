@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import asdict
+import threading
 
 import ray
 
@@ -15,6 +16,7 @@ class OrderManager:
         self.orders: Dict[str, Order] = {}
         self.events: List[dict] = []
         self.actor_handles: Dict[str, ray.actor.ActorHandle] = {}
+        self._thread_lock = threading.Lock()
 
     def create_order(
         self, passenger_id: str, pickup_location: str, dropoff_location: str
@@ -29,7 +31,8 @@ class OrderManager:
             status=OrderStatus.OrderCreated,
             status_timestamps={OrderStatus.OrderCreated: now},
         )
-        self.orders[order_id] = order
+        with self._thread_lock:
+            self.orders[order_id] = order
         self._append_event(order_id, OrderStatus.OrderCreated)
 
         self_handle = ray.get_actor("order_manager", namespace="default")
@@ -67,20 +70,23 @@ class OrderManager:
         return self.events[last_index:]
 
     def _append_event(self, order_id: str, status: OrderStatus) -> None:
-        self.events.append(
-            {
-                "order_id": order_id,
-                "status": status.value,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
+        with self._thread_lock:
+            self.events.append(
+                {
+                    "order_id": order_id,
+                    "status": status.value,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     def get_snapshot(self) -> dict:
-        orders = [asdict(o) for o in self.orders.values()]
-        return {
-            "orders": orders,
-            "total_orders": len(orders),
-        }
+        with self._thread_lock:
+            orders = [asdict(o) for o in self.orders.values()]
+            return {
+                "orders": orders,
+                "total_orders": len(orders),
+                "last_event_index": len(self.events) - 1,
+            }
 
     def _archive_order(self, order_id: str) -> None:
         handle = self.actor_handles.pop(order_id, None)
