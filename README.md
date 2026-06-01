@@ -108,6 +108,11 @@ docker compose up --build
 uv run python -m autoscaler.main
 ```
 
+### Start backend server
+```bash
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+```
+
 ### Submit a test job
 ```bash
 uv run ray job submit \
@@ -115,4 +120,3 @@ uv run ray job submit \
   --working-dir . \
   -- python jobs/heavy_task.py
 ```
-
