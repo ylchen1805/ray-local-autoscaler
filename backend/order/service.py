@@ -24,6 +24,9 @@ class RayOrderService:
         self._last_worker_count: int = 0
         self._lock = threading.Lock()
 
+    def heartbeat(self) -> dict:
+        return {}
+
     # --- for order related API ---
     def create_order(self, request: CreateOrderRequest) -> CreateOrderResponse:
         payload = request.payload
@@ -74,6 +77,9 @@ class RayOrderService:
         if raw is None:
             raise OrderNotFoundError(f"order {order_id} not found")
         return self._to_order_response(raw)
+
+    def get_events_since(self, last_index: int) -> list[dict]:
+        return ray.get(self._manager.get_events_since.remote(last_index))
 
     # --- private helpers ---
 

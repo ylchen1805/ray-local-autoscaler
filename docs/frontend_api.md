@@ -15,7 +15,7 @@
 | Content-Type | `application/json` |
 | 時間格式 | ISO 8601，例如 `"2025-05-30T14:23:00Z"` |
 | 錯誤格式 | `{ "error": "message" }` |
-| WebSocket URL | `ws://localhost:8000/ws` |
+| SSE URL | `http://localhost:8000/sse` |
 
 ### 訂單狀態
 
@@ -311,23 +311,27 @@ Response 200：
 
 ---
 
-## 3. WebSocket API
+## 3. SSE API (Server-Sent Events)
 
-使用者叫車介面與 Ray Admin 儀表板共用同一條 WebSocket。前端依照 `event`
+使用者叫車介面與 Ray Admin 儀表板共用同一條 SSE 連線。前端依照 `event`
 欄位判斷事件類型。
 
 ```text
-WS ws://localhost:8000/ws
+GET http://localhost:8000/sse
 ```
 
-Client 可選擇送出訂閱訊息：
+透過 query parameter 選擇訂閱頻道（不指定則同時接收所有事件）：
 
-```json
-{ "action": "subscribe", "channel": "orders" }
+```text
+GET /sse                    → orders + cluster 全訂閱
+GET /sse?channel=orders     → 只接收 order_updated 事件
+GET /sse?channel=cluster    → 只接收 cluster_updated 事件
 ```
 
-```json
-{ "action": "subscribe", "channel": "cluster" }
+每則 SSE 訊息格式為：
+
+```text
+data: {"event": "...", "data": {...}}\n\n
 ```
 
 ### 3.1 Order Updated
@@ -409,10 +413,10 @@ autoscaler 新增或移除 worker 時推送。
 | --- | --- | --- | --- |
 | 使用者 | 叫車首頁 | `GET /cluster/eta` | 頁面載入時呼叫一次 |
 | 使用者 | 確認叫車 | `POST /orders` | REST |
-| 使用者 | 配對中畫面 | `WS order_updated` | WebSocket push |
-| 使用者 | 司機前往中畫面 | `WS order_updated` | WebSocket push |
-| 使用者 | 行程中畫面 | `WS order_updated` | WebSocket push |
-| 使用者 | 行程完成畫面 | `WS order_updated` | WebSocket push |
-| Admin | 訂單列表 | `GET /orders` | 初始載入 + WebSocket push |
-| Admin | Cluster 狀態 | `GET /cluster/status` | 初始載入 + heartbeat |
+| 使用者 | 配對中畫面 | `SSE order_updated` | SSE push |
+| 使用者 | 司機前往中畫面 | `SSE order_updated` | SSE push |
+| 使用者 | 行程中畫面 | `SSE order_updated` | SSE push |
+| 使用者 | 行程完成畫面 | `SSE order_updated` | SSE push |
+| Admin | 訂單列表 | `GET /orders` | 初始載入 + SSE push |
+| Admin | Cluster 狀態 | `GET /cluster/status` | 初始載入 + SSE heartbeat |
 | Admin | Scaling 歷史 | `GET /cluster/scaling-history` | 定時 poll 或手動刷新 |

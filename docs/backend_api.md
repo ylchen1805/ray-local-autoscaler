@@ -97,7 +97,7 @@ pending, matching, driver_assigned, on_trip, completed, failed, cancelled
 | `GET /orders` | `list_orders(status=None, limit=50)` |
 | `GET /cluster/status` | `get_cluster_status()` |
 | `GET /cluster/scaling-history` | `get_scaling_history(limit=20)` |
-| `WS /ws` | `subscribe_events(channel=None)` |
+| `GET /sse` | `sse_endpoint(channel=None)` |
 
 ---
 
@@ -530,38 +530,36 @@ class ScalingHistoryResult:
 
 ---
 
-## 5. Event / WebSocket 相關 Functions
+## 5. Event / SSE 相關 Functions
 
-### 5.1 `subscribe_events(channel=None)`
+### 5.1 `sse_endpoint(channel=None)`
 
 對應 API：
 
 ```text
-WS /ws
+GET /sse
 ```
 
 用途：
 
-註冊 WebSocket client，並持續推送後端事件。
+建立 SSE (Server-Sent Events) 長連線，持續推送後端事件給前端。
 
 Function signature：
 
 ```python
-async def subscribe_events(websocket, channel: str | None = None) -> None:
+async def sse_endpoint(channel: str | None = None) -> StreamingResponse:
     ...
 ```
 
-Client 可選擇送出的訊息：
+Client 透過 query parameter 選擇訂閱頻道（不指定則訂閱全部）：
 
-```json
-{ "action": "subscribe", "channel": "orders" }
+```text
+GET /sse                    → 訂閱 orders + cluster
+GET /sse?channel=orders     → 只訂閱 order_updated 事件
+GET /sse?channel=cluster    → 只訂閱 cluster_updated 事件
 ```
 
-```json
-{ "action": "subscribe", "channel": "cluster" }
-```
-
-Server 會推送的事件：
+Server 會推送的事件（SSE `data:` 行，每則結尾 `\n\n`）：
 
 ```json
 {
@@ -611,12 +609,12 @@ Server 會推送的事件：
 呼叫來源：
 
 ```text
-Ray OrderManager callback 或 backend event bridge
+Ray OrderManager callback 或 backend event bridge（poll_order_events 背景任務）
 ```
 
 用途：
 
-把 order 狀態變更包成 `order_updated` event，推送給已連線的 WebSocket clients。
+把 order 狀態變更包成 `order_updated` event，推送給已連線的 SSE clients。
 
 Function signature：
 
@@ -641,7 +639,7 @@ async def publish_order_update(
 
 輸出：
 
-無回傳值。此 function 的結果是送出 WebSocket JSON event。
+無回傳值。此 function 的結果是將事件放入所有訂閱 `"orders"` 頻道的 SSE client queue。
 
 ---
 
@@ -655,7 +653,7 @@ Autoscaler scale up / scale down 後
 
 用途：
 
-把 cluster 變更包成 `cluster_updated` event，推送給已連線的 WebSocket clients。
+把 cluster 變更包成 `cluster_updated` event，推送給已連線的 SSE clients。
 
 Function signature：
 
@@ -671,7 +669,7 @@ async def publish_cluster_update(
 
 輸出：
 
-無回傳值。此 function 的結果是送出 WebSocket JSON event。
+無回傳值。此 function 的結果是將事件放入所有訂閱 `"cluster"` 頻道的 SSE client queue。
 
 ---
 
@@ -708,5 +706,5 @@ class OrderManager:
    pending -> matching -> driver_assigned -> on_trip -> completed
 6. Actor 或 OrderManager 產生 update event。
 7. Backend event bridge 呼叫 publish_order_update()。
-8. 前端收到 WS order_updated。
+8. 前端收到 SSE order_updated。
 ```

@@ -1,3 +1,5 @@
+import asyncio
+import os
 from contextlib import asynccontextmanager
 
 import ray
@@ -10,14 +12,14 @@ from .order.driver import DriverPool
 from .api import deps
 from .api.order import router as order_router
 from .api.cluster import router as cluster_router
-from .api.ws import router as ws_router
+from .api.sse import router as ws_router, poll_order_events
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         ray.init(
-            address="ray://localhost:10001",
+            address=os.environ.get("RAY_ADDRESS", "ray://localhost:10001"),
             ignore_reinit_error=True,
             namespace="default",
             runtime_env={"working_dir": "."},
@@ -48,7 +50,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"[api] Error initializing Ray: {exc}")
         exit()
+
+    task = asyncio.create_task(poll_order_events())
     yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(
@@ -73,5 +82,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(order_router)
-app.include_router(cluster_router)
+# app.include_router(cluster_router)
 app.include_router(ws_router)
