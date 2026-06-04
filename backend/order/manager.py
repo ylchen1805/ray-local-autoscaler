@@ -1,39 +1,49 @@
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
-from dataclasses import asdict
 import threading
 
 import ray
+from pydantic import BaseModel, Field
 
-from backend.models import Order, OrderStatus
-from backend.order.actor import OrderActor
+from ..models import TaskStatus, OrderPayload, TripInfo
+from .actor import OrderActor
+
+
+class Order(BaseModel):
+    order_id: str
+    payload: OrderPayload
+    trip: TripInfo | None = None
+    status: TaskStatus = TaskStatus.PENDING
+    status_timestamps: Dict[TaskStatus, datetime] = Field(default_factory=dict)
+    order_type: str = "ride"
+    worker_node: str | None = None
+
+
+class Event(BaseModel):
+    order_id: str
+    status: TaskStatus
+    timestamp: datetime
 
 
 @ray.remote
 class OrderManager:
     def __init__(self):
         self.orders: Dict[str, Order] = {}
-        self.events: List[dict] = []
+        self.events: List[Event] = []
         self.actor_handles: Dict[str, ray.actor.ActorHandle] = {}
         self._thread_lock = threading.Lock()
+        self._scaling_history: List[dict] = []
 
-    def create_order(
-        self, passenger_id: str, pickup_location: str, dropoff_location: str
-    ) -> str:
+    def create_order(self, payload: dict | None = None) -> str:
         order_id = self._get_unique_order_id()
-        now = datetime.now().isoformat()
         order = Order(
             order_id=order_id,
-            passenger_id=passenger_id,
-            pickup_location=pickup_location,
-            dropoff_location=dropoff_location,
-            status=OrderStatus.OrderCreated,
-            status_timestamps={OrderStatus.OrderCreated: now},
+            payload=OrderPayload(**(payload or {})),
         )
         with self._thread_lock:
             self.orders[order_id] = order
-        self._append_event(order_id, OrderStatus.OrderCreated)
+        self.update_status(order_id, TaskStatus.PENDING)
 
         self_handle = ray.get_actor("order_manager", namespace="default")
         actor = OrderActor.remote(order_id, self_handle)
@@ -48,50 +58,55 @@ class OrderManager:
             order_id = f"order_{uuid.uuid4().hex[:ID_LENGTH]}"
         return order_id
 
-    def update_status(self, order_id: str, status: str) -> None:
+    def register_worker(self, order_id: str, worker_node: str) -> None:
+        if order_id in self.orders:
+            self.orders[order_id].worker_node = worker_node
+
+    def set_trip(self, order_id: str, trip: dict) -> None:
+        if order_id in self.orders:
+            self.orders[order_id].trip = TripInfo(**trip)
+
+    def update_status(self, order_id: str, status: TaskStatus) -> None:
         if order_id not in self.orders:
             return
-        s = OrderStatus(status)
         o = self.orders[order_id]
-        o.status = s
-        o.status_timestamps[s] = datetime.now().isoformat()
-        self._append_event(order_id, s)
+        o.status = status
+        o.status_timestamps[status] = datetime.now()
+        self._append_event(order_id, status)
 
-        if o.status == OrderStatus.TripCompleted:
+        if o.status == TaskStatus.COMPLETED:
             self._archive_order(order_id)
 
     def get_order(self, order_id: str) -> Optional[dict]:
         o = self.orders.get(order_id)
         if o is None:
             return None
-        return asdict(o)
+        return o.model_dump()
+
+    def list_orders(
+        self, status_filter: Optional[str] = None, limit: int = 50
+    ) -> List[dict]:
+        with self._thread_lock:
+            orders = list(self.orders.values())
+        if status_filter:
+            orders = [o for o in orders if o.status.value == status_filter]
+        return [o.model_dump() for o in orders[:limit]]
 
     def get_events_since(self, last_index: int) -> List[dict]:
-        return self.events[last_index:]
+        return [event.model_dump() for event in self.events[last_index:]]
 
-    def _append_event(self, order_id: str, status: OrderStatus) -> None:
+    def _append_event(self, order_id: str, status: TaskStatus) -> None:
         with self._thread_lock:
             self.events.append(
-                {
-                    "order_id": order_id,
-                    "status": status.value,
-                    "timestamp": datetime.now().isoformat(),
-                }
+                Event(
+                    order_id=order_id,
+                    status=status,
+                    timestamp=datetime.now(),
+                )
             )
-
-    def get_snapshot(self) -> dict:
-        with self._thread_lock:
-            orders = [asdict(o) for o in self.orders.values()]
-            return {
-                "orders": orders,
-                "total_orders": len(orders),
-                "last_event_index": len(self.events) - 1,
-            }
 
     def _archive_order(self, order_id: str) -> None:
         handle = self.actor_handles.pop(order_id, None)
         if handle is not None:
             print("kill actor for order_id:", order_id)
             ray.kill(handle)
-        self.update_status(order_id, OrderStatus.Archived.value)
-        self._append_event(order_id, OrderStatus.Archived)
