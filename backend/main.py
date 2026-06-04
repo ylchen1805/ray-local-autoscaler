@@ -11,8 +11,9 @@ from .order.service import RayOrderService
 from .order.driver import DriverPool
 from .api import deps
 from .api.order import router as order_router
-from .api.cluster import router as cluster_router
 from .api.sse import router as ws_router, poll_order_events
+
+# from .api.cluster import router as cluster_router
 
 
 @asynccontextmanager
