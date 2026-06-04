@@ -8,7 +8,7 @@ services:
   ray-head:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/ray_head/dockerfile
     image: ray-autoscaler-node
     container_name: ray-head
     networks:
@@ -26,6 +26,22 @@ services:
       --ray-client-server-port=10001
       --block
     env_file: .env
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/dockerfile
+    image: ds-backend
+    container_name: ds-backend
+    networks:
+      - ray-autoscaler-net
+    depends_on:
+      - ray-head
+    ports:
+      - "8000:8000"
+    environment:
+      - RAY_ADDRESS=ray://ray-head:10001
+    command: python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
   # First static worker node for testing the cluster netwoking
   # ray-worker-1:
