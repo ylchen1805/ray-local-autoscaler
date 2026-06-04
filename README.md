@@ -98,7 +98,7 @@ Whenever `pyproject.toml` changes, re-export before rebuilding:
 uv export --no-hashes --no-group local -o docker-requirements.txt
 ```
 
-### Start the cluster
+### Start the ray cluster and backend server
 ```bash
 docker compose up --build
 ```
@@ -106,11 +106,6 @@ docker compose up --build
 ### Start the autoscaler
 ```bash
 uv run python -m autoscaler.main
-```
-
-### Start backend server
-```bash
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### Submit a test job
