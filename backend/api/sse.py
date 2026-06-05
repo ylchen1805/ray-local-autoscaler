@@ -116,12 +116,12 @@ async def sse_endpoint(
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=5.0)
-                    yield f"data: {json.dumps(event, default=str)}\n\n"
+                    yield f"data: {json.dumps(event, default=str, ensure_ascii=False)}\n\n"
                 except asyncio.TimeoutError:
                     if deps.manager is None:
                         continue
                     hb = await asyncio.to_thread(deps.manager.heartbeat)
-                    yield f"data: {json.dumps({'event': 'heartbeat', 'data': hb}, default=str)}\n\n"
+                    yield f"data: {json.dumps({'event': 'heartbeat', 'data': hb}, default=str, ensure_ascii=False)}\n\n"
         finally:
             _cm.remove(conn_id)
 
