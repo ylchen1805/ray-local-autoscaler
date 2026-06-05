@@ -20,7 +20,7 @@ from .api.sse import router as ws_router, poll_order_events
 async def lifespan(app: FastAPI):
     try:
         ray.init(
-            address=os.environ.get("RAY_ADDRESS", "ray://localhost:10001"),
+            address="auto",
             ignore_reinit_error=True,
             namespace="default",
             runtime_env={"working_dir": "."},
