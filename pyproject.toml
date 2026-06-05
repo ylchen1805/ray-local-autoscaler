@@ -5,7 +5,10 @@ description = "Ray cluster autoscaler with dynamic worker scaling"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115.0",
     "ray[default]==2.55.1",
+    "sse-starlette>=2.1.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [dependency-groups]

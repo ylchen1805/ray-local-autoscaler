@@ -98,7 +98,7 @@ Whenever `pyproject.toml` changes, re-export before rebuilding:
 uv export --no-hashes --no-group local -o docker-requirements.txt
 ```
 
-### Start the cluster
+### Start the ray cluster and backend server
 ```bash
 docker compose up --build
 ```
@@ -115,4 +115,3 @@ uv run ray job submit \
   --working-dir . \
   -- python jobs/heavy_task.py
 ```
-
