@@ -6,14 +6,14 @@ import ray
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .cluster.monitor import ClusterMonitor
 from .order.manager import OrderManager
 from .order.service import RayOrderService
 from .order.driver import DriverPool
 from .api import deps
+from .api.cluster import router as cluster_router
 from .api.order import router as order_router
-from .api.sse import router as ws_router, poll_order_events
-
-# from .api.cluster import router as cluster_router
+from .api.sse import router as sse_router, poll_cluster_events, poll_order_events
 
 
 @asynccontextmanager
@@ -48,17 +48,20 @@ async def lifespan(app: FastAPI):
             print("[api] created new DriverPool")
 
         deps.manager = RayOrderService(handle)
+        deps.cluster_monitor = ClusterMonitor()
     except Exception as exc:
         print(f"[api] Error initializing Ray: {exc}")
         exit()
 
-    task = asyncio.create_task(poll_order_events())
+    order_task = asyncio.create_task(poll_order_events())
+    cluster_task = asyncio.create_task(poll_cluster_events())
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for task in (order_task, cluster_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -83,5 +86,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(order_router)
-# app.include_router(cluster_router)
-app.include_router(ws_router)
+app.include_router(cluster_router)
+app.include_router(sse_router)

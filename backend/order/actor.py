@@ -8,13 +8,12 @@ from ..models import TaskStatus
 from .driver import DriverPool, Driver
 
 
-@ray.remote
+@ray.remote(num_cpus=1)
 class OrderActor:
     def __init__(self, order_id: str, manager_handle):
         self.order_id = order_id
         self.manager = manager_handle
         self.status = TaskStatus.PENDING
-        self.worker_node = ray.get_runtime_context().get_node_id()
         self._driver: Driver | None = None
         try:
             self._driver_pool = ray.get_actor("driver_pool", namespace="default")
@@ -24,7 +23,8 @@ class OrderActor:
             ).remote()
 
     def run(self):
-        self.manager.register_worker.remote(self.order_id, self.worker_node)
+        worker_node = ray.get_runtime_context().get_node_id()
+        self.manager.register_worker.remote(self.order_id, worker_node)
         estimated_arrival, estimated_duration, fare_estimate = (
             self._simulate_trip_metrics()
         )

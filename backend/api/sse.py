@@ -59,25 +59,25 @@ async def publish_order_update(
     )
 
 
-# async def publish_cluster_update(
-#     action: str,
-#     worker_id: str | None,
-#     worker_count: int,
-#     pending_tasks: int,
-# ) -> None:
-#     _cm.broadcast(
-#         "cluster",
-#         {
-#             "event": "cluster_updated",
-#             "data": {
-#                 "action": action,
-#                 "worker_id": worker_id,
-#                 "worker_count": worker_count,
-#                 "pending_tasks": pending_tasks,
-#                 "timestamp": datetime.now(UTC).isoformat(),
-#             },
-#         },
-#     )
+async def publish_cluster_update(
+    action: str,
+    worker_id: str | None,
+    worker_count: int,
+    pending_tasks: int,
+) -> None:
+    _cm.broadcast(
+        "cluster",
+        {
+            "event": "cluster_updated",
+            "data": {
+                "action": action,
+                "worker_id": worker_id,
+                "worker_count": worker_count,
+                "pending_tasks": pending_tasks,
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        },
+    )
 
 
 async def poll_order_events() -> None:
@@ -104,6 +104,28 @@ async def poll_order_events() -> None:
             await publish_order_update(order_id, status, trip=trip, result=result)
 
 
+async def poll_cluster_events() -> None:
+    last_worker_count = -1
+    while True:
+        await asyncio.sleep(10)
+        if deps.cluster_monitor is None:
+            continue
+        try:
+            status = await asyncio.to_thread(deps.cluster_monitor.get_cluster_status)
+        except Exception:
+            continue
+        wc = status.worker_count
+        if last_worker_count != -1 and wc != last_worker_count:
+            action = "scale_up" if wc > last_worker_count else "scale_down"
+            await publish_cluster_update(
+                action=action,
+                worker_id=None,
+                worker_count=wc,
+                pending_tasks=status.pending_tasks,
+            )
+        last_worker_count = wc
+
+
 @router.get("/sse")
 async def sse_endpoint(
     channel: str | None = Query(default=None),
@@ -118,9 +140,12 @@ async def sse_endpoint(
                     event = await asyncio.wait_for(queue.get(), timeout=5.0)
                     yield f"data: {json.dumps(event, default=str, ensure_ascii=False)}\n\n"
                 except asyncio.TimeoutError:
-                    if deps.manager is None:
-                        continue
-                    hb = await asyncio.to_thread(deps.manager.heartbeat)
+                    hb: dict = {}
+                    if deps.cluster_monitor is not None:
+                        try:
+                            hb = await asyncio.to_thread(deps.cluster_monitor.get_heartbeat_data)
+                        except Exception:
+                            pass
                     yield f"data: {json.dumps({'event': 'heartbeat', 'data': hb}, default=str, ensure_ascii=False)}\n\n"
         finally:
             _cm.remove(conn_id)
