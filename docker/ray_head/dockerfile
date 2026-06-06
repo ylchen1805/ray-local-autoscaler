@@ -4,6 +4,8 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY docker/ray_head/requirements.txt .
 RUN pip install --no-cache-dir  -r requirements.txt
-
+# COPY backend folder to run backend services
+COPY backend ./backend
+COPY scale_policy.yaml .
 # Expose ports for RAY
 EXPOSE 6379 8265 10001 8076 8080

@@ -17,32 +17,52 @@ services:
       - "8265:8265" # Dashboard
       - "10001:10001" # Client 連線
       - "6379:6379" # GCS
+      - "8000:8000" # Backend
     command: >
+      bash -c "
       ray start --head
       --node-ip-address=ray-head
       --port=6379
       --dashboard-host=0.0.0.0
       --dashboard-port=8265
-      --ray-client-server-port=10001
-      --block
+      --ray-client-server-port=10001 &&
+      python -m uvicorn backend.main:app --host 0.0.0.0 --port  8000
+      "
     env_file: .env
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import ray; ray.init(address='ray-head:6379', ignore_reinit_error=True)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  backend:
-    build:
-      context: .
-      dockerfile: docker/backend/dockerfile
-    image: ds-backend
-    container_name: ds-backend
-    networks:
-      - ray-autoscaler-net
-    depends_on:
-      - ray-head
-    ports:
-      - "8000:8000"
-    environment:
-      - RAY_ADDRESS=ray://ray-head:10001
-    command: python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
-
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/backend/dockerfile
+  #   image: ds-backend
+  #   container_name: ds-backend
+  #   networks:
+  #     - ray-autoscaler-net
+  #   depends_on:
+  #     ray-head:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - RAY_ADDRESS=ray-head:6379
+  #   command: >
+  #     bash -c "
+  #     ray start --address=ray-head:6379 --num-cpus=0 --block &
+  #     sleep 5 &&
+  #     python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+  #     "
   # First static worker node for testing the cluster netwoking
   # ray-worker-1:
   #   build:
