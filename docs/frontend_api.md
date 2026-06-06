@@ -191,6 +191,53 @@ Response 404：
 
 ---
 
+### 1.4 取消叫車訂單
+
+使用時機：使用者已送出訂單並位於配對流程中，按下「取消訂單」按鈕。
+
+```text
+POST /orders/{order_id}/cancel
+```
+
+Request body：無
+
+可取消狀態：
+
+```text
+pending, matching
+```
+
+不可取消狀態：
+
+```text
+driver_assigned, on_trip, completed, failed, cancelled
+```
+
+Response 200：
+
+```json
+{
+  "order_id": "order-uuid-1234",
+  "status": "cancelled"
+}
+```
+
+Response 404：
+
+```json
+{ "error": "order not found" }
+```
+
+Response 409：
+
+```json
+{ "error": "order cannot be cancelled from status: on_trip" }
+```
+
+確認頁面的「返回修改」不需要呼叫此 API，因為前端尚未呼叫 `POST /orders`，後端不應存在對應訂單。
+
+---
+
 ## 2. Admin Dashboard API
 
 ### 2.1 取得訂單列表
@@ -373,6 +420,19 @@ order 狀態變更時推送。
 }
 ```
 
+`cancelled` 狀態代表使用者主動取消仍在執行中的訂單：
+
+```json
+{
+  "event": "order_updated",
+  "data": {
+    "order_id": "order-uuid-1234",
+    "status": "cancelled",
+    "updated_at": "2026-06-05T14:23:10Z"
+  }
+}
+```
+
 ### 3.2 Cluster Updated
 
 autoscaler 新增或移除 worker 時推送。
@@ -414,6 +474,7 @@ autoscaler 新增或移除 worker 時推送。
 | 使用者 | 叫車首頁 | `GET /cluster/eta` | 頁面載入時呼叫一次 |
 | 使用者 | 確認叫車 | `POST /orders` | REST |
 | 使用者 | 配對中畫面 | `SSE order_updated` | SSE push |
+| 使用者 | 取消訂單 | `POST /orders/{order_id}/cancel` | REST + SSE `cancelled` |
 | 使用者 | 司機前往中畫面 | `SSE order_updated` | SSE push |
 | 使用者 | 行程中畫面 | `SSE order_updated` | SSE push |
 | 使用者 | 行程完成畫面 | `SSE order_updated` | SSE push |
