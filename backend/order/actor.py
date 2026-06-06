@@ -1,6 +1,7 @@
 import random
 import time
 from datetime import datetime
+import math
 
 import ray
 
@@ -21,6 +22,16 @@ class OrderActor:
             self._driver_pool = DriverPool.options(
                 name="driver_pool", lifetime="detached", namespace="default"
             ).remote()
+
+    def burn_cpu(self, seconds: float):
+        """simulate CPU work for a given number of seconds"""
+        end_time = time.time() + seconds
+        x = 0.0
+
+        while time.time() < end_time:
+            x += math.sqrt(12345.6789)
+
+        return x
 
     def run(self):
         worker_node = ray.get_runtime_context().get_node_id()
@@ -46,7 +57,7 @@ class OrderActor:
             (TaskStatus.COMPLETED, random.uniform(1.0, 3.0)),
         ]
         for status, delay in transitions:
-            time.sleep(delay)
+            self.burn_cpu(delay)
             print(
                 f"[{datetime.now().isoformat()}] OrderActor {self.order_id}: {self.status} -> {status.value}"
             )
