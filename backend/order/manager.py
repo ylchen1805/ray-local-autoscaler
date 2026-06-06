@@ -5,7 +5,6 @@ from typing import Dict, List, Optional
 import threading
 
 import ray
-from ray.exceptions import RayTaskError
 from pydantic import BaseModel, Field
 
 from ..models import (
@@ -17,7 +16,7 @@ from ..models import (
 )
 from .actor import OrderActor
 
-_MAX_EVENTS = 10
+_MAX_EVENTS = 100
 
 
 class Order(BaseModel):
