@@ -6,7 +6,13 @@ import threading
 import ray
 from pydantic import BaseModel, Field
 
-from ..models import TaskStatus, OrderPayload, TripInfo
+from ..models import (
+    TaskStatus,
+    OrderPayload,
+    TripInfo,
+    OrderNotFoundError,
+    OrderCancelConflictError,
+)
 from .actor import OrderActor
 
 
@@ -76,6 +82,24 @@ class OrderManager:
 
         if o.status == TaskStatus.COMPLETED:
             self._archive_order(order_id)
+
+    def cancel_order(self, order_id: str) -> dict:
+        o = self.orders.get(order_id)
+        if o is None:
+            raise OrderNotFoundError(f"order {order_id} not found")
+
+        _CANCELLABLE = {TaskStatus.PENDING, TaskStatus.MATCHING}
+        if o.status not in _CANCELLABLE:
+            raise OrderCancelConflictError(
+                f"order cannot be cancelled from status: {o.status.value}"
+            )
+
+        actor_info = self.actor_handles.pop(order_id, None)
+        if actor_info:
+            ray.kill(actor_info["actor_handle"])
+
+        self.update_status(order_id, TaskStatus.CANCELLED)
+        return {"order_id": order_id, "status": "cancelled"}
 
     def get_order(self, order_id: str) -> Optional[dict]:
         o = self.orders.get(order_id)
