@@ -80,6 +80,7 @@ class OrderActor:
 
     def _simulate_trip_metrics(self):
         # simulate different order / driver
+        times = 5
 
         # arrival
         estimated_arrival = max(1, int(random.expovariate(1 / 4)))
@@ -97,4 +98,4 @@ class OrderActor:
         fare_estimate = base_fare + estimated_duration * per_minute + noise
         fare_estimate = max(50, fare_estimate)
 
-        return estimated_arrival, estimated_duration, fare_estimate
+        return estimated_arrival * times, estimated_duration * times, fare_estimate
