@@ -1,4 +1,5 @@
 import uuid
+from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
 import threading
@@ -14,6 +15,8 @@ from ..models import (
     OrderCancelConflictError,
 )
 from .actor import OrderActor
+
+_MAX_EVENTS = 10
 
 
 class Order(BaseModel):
@@ -36,7 +39,8 @@ class Event(BaseModel):
 class OrderManager:
     def __init__(self):
         self.orders: Dict[str, Order] = {}
-        self.events: List[Event] = []
+        self.events: deque = deque(maxlen=_MAX_EVENTS)
+        self._event_offset: int = 0
         self.actor_handles: Dict[str, ray.actor.ActorHandle] = {}
         self._thread_lock = threading.Lock()
         self._scaling_history: List[dict] = []
@@ -117,10 +121,13 @@ class OrderManager:
         return [o.model_dump() for o in orders[:limit]]
 
     def get_events_since(self, last_index: int) -> List[dict]:
-        return [event.model_dump() for event in self.events[last_index:]]
+        start = max(0, last_index - self._event_offset)
+        return [event.model_dump() for event in list(self.events)[start:]]
 
     def _append_event(self, order_id: str, status: TaskStatus) -> None:
         with self._thread_lock:
+            if len(self.events) == _MAX_EVENTS:
+                self._event_offset += 1
             self.events.append(
                 Event(
                     order_id=order_id,
