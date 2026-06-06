@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import threading
 
 import ray
+from ray.exceptions import RayTaskError
 from pydantic import BaseModel, Field
 
 from ..models import (
@@ -144,5 +145,8 @@ class OrderManager:
             print("kill actor for order_id:", order_id)
             # ensure the actor has finished its run method before killing
             if run_ref is not None:
-                ray.get(run_ref)
+                try:
+                    ray.get(run_ref)
+                except Exception:
+                    self.update_status(order_id, TaskStatus.FAILED)
             ray.kill(handle)
