@@ -1,55 +1,42 @@
 #!/bin/bash
 
-set -e
-
-N=1
-
 while [[ $# -gt 0 ]]; do
-   case $1 in
-      --N)
-         N="$2"
-         shift 2
-         ;;
-      *)
-         echo "Unknown argument: $1"
-         exit 1
-         ;;
-   esac
+  case $1 in
+    --N)
+      count="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
 done
 
-random_coord() {
-   local center=$1
-   local delta=0.02
+if [ -z "$count" ]; then
+  echo "Usage: $0 <number_of_orders>"
+  exit 1
+fi
 
-   awk -v c="$center" -v r="$RANDOM" -v d="$delta" '
-   BEGIN {
-      srand(r);
-      print c + (rand()*2-1)*d
-   }'
-}
+echo -e "Create $count orders...\n"
 
-for ((i=1; i<=N; i++))
-do
-   passenger_id="u$(printf "%05d" $RANDOM)"
+for ((i=1; i<=count; i++)); do
 
-   pickup_lat=$(random_coord 37.770000)
-   pickup_lng=$(random_coord -122.410000)
+  curl -X POST "http://localhost:8000/orders" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "order_type": "ride",
+      "payload": {
+        "origin": "台北車站",
+        "destination": "松山機場",
+        "origin_lat": 25.0478,
+        "origin_lng": 121.5170,
+        "destination_lat": 25.0630,
+        "destination_lng": 121.5530,
+        "ride_type": "standard"
+      }
+    }'
+  echo
 
-   dropoff_lat=$(random_coord 37.780000)
-   dropoff_lng=$(random_coord -122.400000)
-
-   pickup_location="${pickup_lat},${pickup_lng}"
-   dropoff_location="${dropoff_lat},${dropoff_lng}"
-
-   echo "[${i}/${N}] Creating order for ${passenger_id} from ${pickup_location} to ${dropoff_location}"
-
-   curl -s -X POST http://localhost:8000/api/v1/orders \
-      -H "Content-Type: application/json" \
-      -d "{
-            \"passenger_id\":\"${passenger_id}\",
-            \"pickup_location\":\"${pickup_location}\",
-            \"dropoff_location\":\"${dropoff_location}\"
-      }"
-   echo
-
+  sleep 1
 done

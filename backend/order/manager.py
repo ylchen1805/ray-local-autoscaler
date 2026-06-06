@@ -47,8 +47,8 @@ class OrderManager:
 
         self_handle = ray.get_actor("order_manager", namespace="default")
         actor = OrderActor.remote(order_id, self_handle)
-        actor.run.remote()
-        self.actor_handles[order_id] = actor
+        run_ref = actor.run.remote()
+        self.actor_handles[order_id] = {"actor_handle": actor, "run_ref": run_ref}
         return order_id
 
     def _get_unique_order_id(self) -> str:
@@ -106,7 +106,12 @@ class OrderManager:
             )
 
     def _archive_order(self, order_id: str) -> None:
-        handle = self.actor_handles.pop(order_id, None)
+        actor_info = self.actor_handles.pop(order_id, None)
+        handle = actor_info["actor_handle"] if actor_info else None
+        run_ref = actor_info["run_ref"] if actor_info else None
         if handle is not None:
             print("kill actor for order_id:", order_id)
+            # ensure the actor has finished its run method before killing
+            if run_ref is not None:
+                ray.get(run_ref)
             ray.kill(handle)

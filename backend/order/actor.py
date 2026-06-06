@@ -1,6 +1,7 @@
 import random
 import time
 from datetime import datetime
+import math
 
 import ray
 
@@ -8,13 +9,12 @@ from ..models import TaskStatus
 from .driver import DriverPool, Driver
 
 
-@ray.remote
+@ray.remote(num_cpus=1)
 class OrderActor:
     def __init__(self, order_id: str, manager_handle):
         self.order_id = order_id
         self.manager = manager_handle
         self.status = TaskStatus.PENDING
-        self.worker_node = ray.get_runtime_context().get_node_id()
         self._driver: Driver | None = None
         try:
             self._driver_pool = ray.get_actor("driver_pool", namespace="default")
@@ -23,8 +23,19 @@ class OrderActor:
                 name="driver_pool", lifetime="detached", namespace="default"
             ).remote()
 
+    def burn_cpu(self, seconds: float):
+        """simulate CPU work for a given number of seconds"""
+        end_time = time.time() + seconds
+        x = 0.0
+
+        while time.time() < end_time:
+            x += math.sqrt(12345.6789)
+
+        return x
+
     def run(self):
-        self.manager.register_worker.remote(self.order_id, self.worker_node)
+        worker_node = ray.get_runtime_context().get_node_id()
+        self.manager.register_worker.remote(self.order_id, worker_node)
         estimated_arrival, estimated_duration, fare_estimate = (
             self._simulate_trip_metrics()
         )
@@ -46,7 +57,7 @@ class OrderActor:
             (TaskStatus.COMPLETED, random.uniform(1.0, 3.0)),
         ]
         for status, delay in transitions:
-            time.sleep(delay)
+            self.burn_cpu(delay)
             print(
                 f"[{datetime.now().isoformat()}] OrderActor {self.order_id}: {self.status} -> {status.value}"
             )
