@@ -44,6 +44,7 @@ service function 可以丟出 typed exception，或回傳錯誤物件；但 HTTP
 | --- | --- |
 | request payload 格式錯誤 | `400 Bad Request` |
 | 找不到 order | `404 Not Found` |
+| 訂單目前狀態不可執行該操作 | `409 Conflict` |
 | 後端或 Ray 操作失敗 | `500 Internal Server Error` |
 
 ### 1.2 RidePayload
@@ -93,6 +94,7 @@ pending, matching, driver_assigned, on_trip, completed, failed, cancelled
 | --- | --- |
 | `GET /cluster/eta` | `get_eta()` |
 | `POST /orders` | `create_order(order_type, payload)` |
+| `POST /orders/{order_id}/cancel` | `cancel_order(order_id)` |
 | `GET /orders/{order_id}` | `get_order(order_id)` |
 | `GET /orders` | `list_orders(status=None, limit=50)` |
 | `GET /cluster/status` | `get_cluster_status()` |
@@ -265,7 +267,95 @@ Ray OrderManager 會建立 order actor。
 
 ---
 
-### 3.3 `get_order(order_id)`
+### 3.3 `cancel_order(order_id)`
+
+對應 API：
+
+```text
+POST /orders/{order_id}/cancel
+```
+
+用途：
+
+取消使用者主動停止、且仍在配對階段的訂單。後端必須在同一次取消操作中停止對應的 Ray Order Actor，並將訂單狀態更新為 `cancelled`，避免 Actor 後續繼續把訂單推進到 `driver_assigned`、`on_trip` 或 `completed`。
+
+Function signature：
+
+```python
+def cancel_order(order_id: str) -> CancelOrderResult:
+    ...
+```
+
+可取消狀態：
+
+```text
+pending, matching
+```
+
+不可取消狀態：
+
+```text
+driver_assigned, on_trip, completed, failed, cancelled
+```
+
+未來若要允許取消 `driver_assigned` 狀態，後端還需要將已配對的司機釋放回 Driver Pool。
+
+後端預期行為：
+
+```text
+1. 查詢 order 是否存在。
+2. 驗證目前狀態只能是 pending 或 matching。
+3. 使用 ray.kill 停止對應的 Ray Order Actor。
+4. 從 actor_handles 移除對應的 Actor handle。
+5. 將訂單狀態更新為 TaskStatus.CANCELLED。
+6. 使用既有狀態時間紀錄邏輯保存 cancelled 時間。
+7. 新增取消事件，讓既有 SSE polling 流程推送 cancelled 狀態。
+8. 回傳取消結果。
+```
+
+輸出：
+
+```python
+class CancelOrderResult:
+    order_id: str
+    status: Literal["cancelled"]
+```
+
+Response 200 範例：
+
+```json
+{
+  "order_id": "order-uuid-1234",
+  "status": "cancelled"
+}
+```
+
+失敗時回傳：
+
+```json
+{ "error": "order not found" }
+```
+
+```json
+{ "error": "order cannot be cancelled from status: on_trip" }
+```
+
+取消成功後，後端必須透過 SSE 推送：
+
+```json
+{
+  "event": "order_updated",
+  "data": {
+    "order_id": "order-uuid-1234",
+    "status": "cancelled",
+    "updated_at": "2026-06-05T14:23:10Z"
+  }
+}
+```
+
+---
+
+### 3.4 `get_order(order_id)`
 
 對應 API：
 
@@ -685,6 +775,9 @@ class OrderManager:
     def create_order(self, order_type: str, payload: dict) -> dict:
         ...
 
+    def cancel_order(self, order_id: str) -> dict:
+        ...
+
     def get_order(self, order_id: str) -> dict | None:
         ...
 
@@ -708,3 +801,20 @@ class OrderManager:
 7. Backend event bridge 呼叫 publish_order_update()。
 8. 前端收到 SSE order_updated。
 ```
+
+### 6.3 取消訂單流程
+
+```text
+1. 前端只在已建立後端訂單後保存目前 order_id。
+2. 使用者在配對頁面點擊「取消訂單」。
+3. 前端呼叫 POST /orders/{order_id}/cancel。
+4. API route 呼叫 cancel_order(order_id)。
+5. Backend service 呼叫 Ray OrderManager.cancel_order(order_id)。
+6. OrderManager 驗證 order 狀態是否為 pending 或 matching。
+7. OrderManager 使用 ray.kill 停止對應 OrderActor，並移除 actor handle。
+8. OrderManager 將狀態更新為 cancelled，保存 cancelled 時間並新增 event。
+9. Backend event bridge 透過 publish_order_update() 推送 cancelled。
+10. 前端收到 API 成功或 SSE cancelled 後，返回下單頁面並清除目前 order_id。
+```
+
+確認頁面的「返回修改」不會呼叫取消 API，因為該階段前端尚未呼叫 `POST /orders`，後端不應存在對應訂單。

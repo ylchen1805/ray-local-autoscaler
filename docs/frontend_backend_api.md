@@ -130,6 +130,7 @@ manager.get_order(order_id)
 | `POST /orders` | `create_order()` | 使用者建立叫車訂單。 |
 | `GET /orders` | `list_orders()` | Admin 取得訂單列表。 |
 | `GET /orders/{order_id}` | `get_order()` | 取得單筆訂單詳情。 |
+| `POST /orders/{order_id}/cancel` | `cancel_order()` | 使用者取消仍在配對中的訂單。 |
 | `GET /cluster/status` | `get_cluster_status()` | Admin 取得 cluster 狀態。 |
 | `GET /cluster/eta` | `get_eta()` | 使用者取得預估等待時間。 |
 | `GET /cluster/scaling-history` | `get_scaling_history()` | Admin 取得 autoscaler 歷史。 |
@@ -141,6 +142,7 @@ manager.get_order(order_id)
 
 ```python
 manager.create_order(...)
+manager.cancel_order(...)
 manager.list_orders(...)
 manager.get_order(...)
 manager.get_cluster_status()
@@ -330,6 +332,7 @@ uv run uvicorn api.main:app --port 8000
 ```text
 叫車首頁載入 -> GET /cluster/eta
 按下確認叫車 -> POST /orders
+按下取消訂單 -> POST /orders/{order_id}/cancel
 訂單狀態更新 -> WS /ws 的 order_updated event
 Admin 訂單列表 -> GET /orders
 Admin cluster 卡片 -> GET /cluster/status
@@ -370,7 +373,67 @@ Admin cluster 卡片 -> GET /cluster/status
 
 ---
 
-## 8. 啟動方式
+## 8. 取消訂單 API
+
+取消訂單 API 讓使用者在訂單仍處於配對階段時停止後端 Order Actor，避免前端返回下單頁面後，後端仍繼續把同一筆訂單推進到 `completed`。
+
+```text
+POST /orders/{order_id}/cancel
+```
+
+Request body：無
+
+成功回應：
+
+```json
+{
+  "order_id": "order-uuid-1234",
+  "status": "cancelled"
+}
+```
+
+找不到訂單時：
+
+```json
+{ "error": "order not found" }
+```
+
+訂單狀態不可取消時：
+
+```json
+{ "error": "order cannot be cancelled from status: on_trip" }
+```
+
+可取消狀態：
+
+```text
+pending, matching
+```
+
+不可取消狀態：
+
+```text
+driver_assigned, on_trip, completed, failed, cancelled
+```
+
+取消成功後，後端應推送 `order_updated` 事件：
+
+```json
+{
+  "event": "order_updated",
+  "data": {
+    "order_id": "order-uuid-1234",
+    "status": "cancelled",
+    "updated_at": "2026-06-05T14:23:10Z"
+  }
+}
+```
+
+確認頁面的「返回修改」只做前端頁面切換，不呼叫取消 API，因為此階段尚未建立後端訂單。
+
+---
+
+## 9. 啟動方式
 
 ```bash
 uv run uvicorn api.main:app --reload --port 8000
