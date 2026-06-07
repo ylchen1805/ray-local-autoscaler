@@ -1,4 +1,5 @@
 import uuid
+from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
 import threading
@@ -6,8 +7,16 @@ import threading
 import ray
 from pydantic import BaseModel, Field
 
-from ..models import TaskStatus, OrderPayload, TripInfo
+from ..models import (
+    TaskStatus,
+    OrderPayload,
+    TripInfo,
+    OrderNotFoundError,
+    OrderCancelConflictError,
+)
 from .actor import OrderActor
+
+_MAX_EVENTS = 100
 
 
 class Order(BaseModel):
@@ -30,7 +39,8 @@ class Event(BaseModel):
 class OrderManager:
     def __init__(self):
         self.orders: Dict[str, Order] = {}
-        self.events: List[Event] = []
+        self.events: deque = deque(maxlen=_MAX_EVENTS)
+        self._event_offset: int = 0
         self.actor_handles: Dict[str, ray.actor.ActorHandle] = {}
         self._thread_lock = threading.Lock()
         self._scaling_history: List[dict] = []
@@ -77,6 +87,24 @@ class OrderManager:
         if o.status == TaskStatus.COMPLETED:
             self._archive_order(order_id)
 
+    def cancel_order(self, order_id: str) -> dict:
+        o = self.orders.get(order_id)
+        if o is None:
+            raise OrderNotFoundError(f"order {order_id} not found")
+
+        _CANCELLABLE = {TaskStatus.PENDING, TaskStatus.MATCHING}
+        if o.status not in _CANCELLABLE:
+            raise OrderCancelConflictError(
+                f"order cannot be cancelled from status: {o.status.value}"
+            )
+
+        actor_info = self.actor_handles.pop(order_id, None)
+        if actor_info:
+            ray.kill(actor_info["actor_handle"])
+
+        self.update_status(order_id, TaskStatus.CANCELLED)
+        return {"order_id": order_id, "status": "cancelled"}
+
     def get_order(self, order_id: str) -> Optional[dict]:
         o = self.orders.get(order_id)
         if o is None:
@@ -93,10 +121,13 @@ class OrderManager:
         return [o.model_dump() for o in orders[:limit]]
 
     def get_events_since(self, last_index: int) -> List[dict]:
-        return [event.model_dump() for event in self.events[last_index:]]
+        start = max(0, last_index - self._event_offset)
+        return [event.model_dump() for event in list(self.events)[start:]]
 
     def _append_event(self, order_id: str, status: TaskStatus) -> None:
         with self._thread_lock:
+            if len(self.events) == _MAX_EVENTS:
+                self._event_offset += 1
             self.events.append(
                 Event(
                     order_id=order_id,
@@ -113,5 +144,8 @@ class OrderManager:
             print("kill actor for order_id:", order_id)
             # ensure the actor has finished its run method before killing
             if run_ref is not None:
-                ray.get(run_ref)
+                try:
+                    ray.get(run_ref)
+                except Exception:
+                    self.update_status(order_id, TaskStatus.FAILED)
             ray.kill(handle)

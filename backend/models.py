@@ -17,6 +17,10 @@ class OrderCreationError(Exception):
     pass
 
 
+class OrderCancelConflictError(Exception):
+    pass
+
+
 class TaskStatus(StrEnum):
     PENDING = "pending"
     MATCHING = "matching"
@@ -75,6 +79,11 @@ class CreateOrderResponse(BaseModel):
     order_type: str
     status: TaskStatus
     created_at: datetime
+
+
+class CancelOrderResponse(BaseModel):
+    order_id: str
+    status: Literal["cancelled"]
 
 
 class EtaResponse(BaseModel):

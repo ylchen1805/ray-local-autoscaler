@@ -5,9 +5,11 @@ from typing import Optional
 import ray
 
 from ..models import (
+    CancelOrderResponse,
     CreateOrderRequest,
     CreateOrderResponse,
     InvalidPayloadError,
+    OrderCancelConflictError,
     OrderCreationError,
     OrderListResponse,
     OrderNotFoundError,
@@ -77,6 +79,15 @@ class RayOrderService:
         if raw is None:
             raise OrderNotFoundError(f"order {order_id} not found")
         return self._to_order_response(raw)
+
+    def cancel_order(self, order_id: str) -> CancelOrderResponse:
+        try:
+            result = ray.get(self._manager.cancel_order.remote(order_id))
+        except (OrderNotFoundError, OrderCancelConflictError):
+            raise
+        except Exception as exc:
+            raise OrderCreationError("failed to cancel order") from exc
+        return CancelOrderResponse(**result)
 
     def get_events_since(self, last_index: int) -> list[dict]:
         return ray.get(self._manager.get_events_since.remote(last_index))
