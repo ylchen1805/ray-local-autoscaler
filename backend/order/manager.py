@@ -118,6 +118,10 @@ class OrderManager:
             orders = list(self.orders.values())
         if status_filter:
             orders = [o for o in orders if o.status.value == status_filter]
+        orders.sort(
+            key=lambda o: o.status_timestamps.get(TaskStatus.PENDING, datetime.min),
+            reverse=True,
+        )
         return [o.model_dump() for o in orders[:limit]]
 
     def get_events_since(self, last_index: int) -> List[dict]:
